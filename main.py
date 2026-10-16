@@ -2,14 +2,15 @@ import sys
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QHBoxLayout, QHeaderView, QMainWindow,
-    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
-    QVBoxLayout, QWidget,
+    QAbstractItemView, QApplication, QDialog, QHBoxLayout, QHeaderView,
+    QMainWindow, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
+    QTabWidget, QVBoxLayout, QWidget,
 )
 
 from appointment_dialog import AppointmentDialog
 from clients_tab import ClientsTab
 from db import get_connection
+from login_dialog import LoginDialog
 from payment_dialog import PaymentDialog
 from reports_tab import ReportsTab
 
@@ -25,6 +26,7 @@ FROM appointments a
 JOIN clients c ON c.id = a.client_id
 JOIN masters m ON m.id = a.master_id
 JOIN v_appointment_balance b ON b.appointment_id = a.id
+{where}
 ORDER BY a.start_time
 """
 
@@ -39,8 +41,9 @@ STATUSES = {
 
 
 class AppointmentsTab(QWidget):
-    def __init__(self):
+    def __init__(self, user):
         super().__init__()
+        self.user = user
 
         add_button = QPushButton("Новая запись")
         add_button.clicked.connect(self.open_new_appointment)
@@ -66,8 +69,15 @@ class AppointmentsTab(QWidget):
         self.load_appointments()
 
     def load_appointments(self):
+        if self.user["role"] == "master":
+            query = QUERY.format(where="WHERE a.master_id = %s")
+            params = (self.user["master_id"],)
+        else:
+            query = QUERY.format(where="")
+            params = ()
+
         with get_connection() as conn:
-            rows = conn.execute(QUERY).fetchall()
+            rows = conn.execute(query, params).fetchall()
 
         self.table.setColumnCount(len(HEADERS))
         self.table.setHorizontalHeaderLabels(HEADERS)
@@ -95,7 +105,8 @@ class AppointmentsTab(QWidget):
         return self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
 
     def open_new_appointment(self):
-        dialog = AppointmentDialog(self)
+        master_id = self.user["master_id"] if self.user["role"] == "master" else None
+        dialog = AppointmentDialog(self, master_id)
         if dialog.exec():
             self.load_appointments()
 
@@ -137,39 +148,47 @@ class AppointmentsTab(QWidget):
                                     "По этой записи нет задолженности.")
             return
 
-        dialog = PaymentDialog(app_id, due, self)
+        dialog = PaymentDialog(app_id, due, self.user["id"], self)
         if dialog.exec():
             self.load_appointments()
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, user):
         super().__init__()
-        self.setWindowTitle("Студия красоты")
+        self.setWindowTitle(f"Студия красоты, вы вошли как {user['username']}")
         self.resize(1100, 500)
 
-        self.appointments_tab = AppointmentsTab()
+        self.appointments_tab = AppointmentsTab(user)
         self.clients_tab = ClientsTab()
-        self.reports_tab = ReportsTab()
+        self.reports_tab = None
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.appointments_tab, "Записи")
         self.tabs.addTab(self.clients_tab, "Клиенты")
-        self.tabs.addTab(self.reports_tab, "Отчёты")
+        if user["role"] == "admin":
+            self.reports_tab = ReportsTab()
+            self.tabs.addTab(self.reports_tab, "Отчёты")
         self.tabs.currentChanged.connect(self.refresh_tab)
         self.setCentralWidget(self.tabs)
 
     def refresh_tab(self, index):
         """При переходе на вкладку обновляем её данные."""
-        if index == 0:
+        widget = self.tabs.widget(index)
+        if widget is self.appointments_tab:
             self.appointments_tab.load_appointments()
-        elif index == 1:
+        elif widget is self.clients_tab:
             self.clients_tab.load_clients()
-        else:
+        elif widget is self.reports_tab:
             self.reports_tab.show_report()
 
 
 app = QApplication(sys.argv)
-window = MainWindow()
+
+login = LoginDialog()
+if login.exec() != QDialog.DialogCode.Accepted:
+    sys.exit(0)
+
+window = MainWindow(login.user)
 window.show()
 sys.exit(app.exec())

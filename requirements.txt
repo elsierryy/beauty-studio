@@ -1,3 +1,4 @@
 PyQt6
 psycopg[binary]
 python-dotenv
+bcrypt

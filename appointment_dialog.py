@@ -14,7 +14,7 @@ DATE_FORMAT = "dd.MM.yyyy HH:mm"
 
 
 class AppointmentDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, master_id=None):
         super().__init__(parent)
         self.setWindowTitle("Новая запись")
         self.resize(450, 420)
@@ -54,8 +54,10 @@ class AppointmentDialog(QDialog):
         form.addRow(buttons)
 
         self.load_lists()
+        if master_id is not None:
+            self.master_box.setCurrentIndex(self.master_box.findData(master_id))
+            self.master_box.setEnabled(False)
 
-        # сигналы подключаем после первой загрузки, чтобы они не сработали раньше времени
         self.master_box.currentIndexChanged.connect(self.load_services)
         self.services_list.itemChanged.connect(self.update_summary)
         self.date_edit.dateChanged.connect(self.update_summary)

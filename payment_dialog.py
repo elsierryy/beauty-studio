@@ -10,9 +10,10 @@ METHODS = [("Наличные", "cash"), ("Карта", "card"), ("Перево�
 
 
 class PaymentDialog(QDialog):
-    def __init__(self, appointment_id, balance_due, parent=None):
+    def __init__(self, appointment_id, balance_due, user_id, parent=None):
         super().__init__(parent)
         self.appointment_id = appointment_id
+        self.user_id = user_id
         self.setWindowTitle("Оплата")
 
         self.amount_box = QDoubleSpinBox()
@@ -42,8 +43,9 @@ class PaymentDialog(QDialog):
         amount = Decimal(f"{self.amount_box.value():.2f}")
         with get_connection() as conn:
             conn.execute(
-                "INSERT INTO payments (appointment_id, amount, method) "
-                "VALUES (%s, %s, %s)",
-                (self.appointment_id, amount, self.method_box.currentData()),
+                "INSERT INTO payments (appointment_id, amount, method, created_by) "
+                "VALUES (%s, %s, %s, %s)",
+                (self.appointment_id, amount, self.method_box.currentData(),
+                 self.user_id),
             )
         self.accept()
