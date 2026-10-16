@@ -3,11 +3,12 @@ import sys
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QHBoxLayout, QHeaderView, QMainWindow,
-    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
-    QWidget,
+    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
+    QVBoxLayout, QWidget,
 )
 
 from appointment_dialog import AppointmentDialog
+from clients_tab import ClientsTab
 from db import get_connection
 from payment_dialog import PaymentDialog
 
@@ -36,36 +37,30 @@ STATUSES = {
 }
 
 
-class MainWindow(QMainWindow):
+class AppointmentsTab(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Студия красоты")
-        self.resize(950, 450)
 
-        self.add_button = QPushButton("Новая запись")
-        self.add_button.clicked.connect(self.open_new_appointment)
-        self.cancel_button = QPushButton("Отменить запись")
-        self.cancel_button.clicked.connect(self.cancel_appointment)
-        self.pay_button = QPushButton("Отметить оплату")
-        self.pay_button.clicked.connect(self.add_payment)
+        add_button = QPushButton("Новая запись")
+        add_button.clicked.connect(self.open_new_appointment)
+        cancel_button = QPushButton("Отменить запись")
+        cancel_button.clicked.connect(self.cancel_appointment)
+        pay_button = QPushButton("Отметить оплату")
+        pay_button.clicked.connect(self.add_payment)
 
         buttons = QHBoxLayout()
-        buttons.addWidget(self.add_button)
-        buttons.addWidget(self.cancel_button)
-        buttons.addWidget(self.pay_button)
+        buttons.addWidget(add_button)
+        buttons.addWidget(cancel_button)
+        buttons.addWidget(pay_button)
 
         self.table = QTableWidget()
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(self)
         layout.addLayout(buttons)
         layout.addWidget(self.table)
-
-        central = QWidget()
-        central.setLayout(layout)
-        self.setCentralWidget(central)
 
         self.load_appointments()
 
@@ -145,6 +140,29 @@ class MainWindow(QMainWindow):
         dialog = PaymentDialog(app_id, due, self)
         if dialog.exec():
             self.load_appointments()
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Студия красоты")
+        self.resize(1100, 500)
+
+        self.appointments_tab = AppointmentsTab()
+        self.clients_tab = ClientsTab()
+
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.appointments_tab, "Записи")
+        self.tabs.addTab(self.clients_tab, "Клиенты")
+        self.tabs.currentChanged.connect(self.refresh_tab)
+        self.setCentralWidget(self.tabs)
+
+    def refresh_tab(self, index):
+        """При переходе на вкладку обновляем её данные."""
+        if index == 0:
+            self.appointments_tab.load_appointments()
+        else:
+            self.clients_tab.load_clients()
 
 
 app = QApplication(sys.argv)
