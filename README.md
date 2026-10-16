@@ -17,6 +17,7 @@
 ![Записи](screenshots/appointments.png)
 ![Клиенты](screenshots/clients.png)
 ![Новая запись](screenshots/new_appointment.png)
+![Отчёты](screenshots/reports.png)
 
 ## База данных
 
@@ -54,4 +55,4 @@ python main.py
 ## Что дальше
 
 - вход в приложение с ролями администратора и мастера
-- отчёты по выручке и популярным услугам
+- отчёты по выручке и популярным услугам, загрузке мастеров

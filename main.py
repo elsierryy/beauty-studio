@@ -11,6 +11,7 @@ from appointment_dialog import AppointmentDialog
 from clients_tab import ClientsTab
 from db import get_connection
 from payment_dialog import PaymentDialog
+from reports_tab import ReportsTab
 
 QUERY = """
 SELECT a.id,
@@ -78,7 +79,6 @@ class AppointmentsTab(QWidget):
             for c, value in enumerate(values):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
 
-            # прячем служебные данные в первую ячейку строки
             self.table.item(r, 0).setData(
                 Qt.ItemDataRole.UserRole, (app_id, status, due)
             )
@@ -150,10 +150,12 @@ class MainWindow(QMainWindow):
 
         self.appointments_tab = AppointmentsTab()
         self.clients_tab = ClientsTab()
+        self.reports_tab = ReportsTab()
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.appointments_tab, "Записи")
         self.tabs.addTab(self.clients_tab, "Клиенты")
+        self.tabs.addTab(self.reports_tab, "Отчёты")
         self.tabs.currentChanged.connect(self.refresh_tab)
         self.setCentralWidget(self.tabs)
 
@@ -161,8 +163,10 @@ class MainWindow(QMainWindow):
         """При переходе на вкладку обновляем её данные."""
         if index == 0:
             self.appointments_tab.load_appointments()
-        else:
+        elif index == 1:
             self.clients_tab.load_clients()
+        else:
+            self.reports_tab.show_report()
 
 
 app = QApplication(sys.argv)
