@@ -14,8 +14,9 @@ DATE_FORMAT = "dd.MM.yyyy HH:mm"
 
 
 class AppointmentDialog(QDialog):
-    def __init__(self, parent=None, master_id=None):
+    def __init__(self, parent=None, master_id=None, client_id=None):
         super().__init__(parent)
+        self.fixed_client_id = client_id
         self.setWindowTitle("Новая запись")
         self.resize(450, 420)
 
@@ -54,10 +55,14 @@ class AppointmentDialog(QDialog):
         form.addRow(buttons)
 
         self.load_lists()
+
         if master_id is not None:
             self.master_box.setCurrentIndex(self.master_box.findData(master_id))
             self.master_box.setEnabled(False)
+        if client_id is not None:
+            self.client_box.setEnabled(False)
 
+        # сигналы подключаем после первой загрузки, чтобы они не сработали раньше времени
         self.master_box.currentIndexChanged.connect(self.load_services)
         self.services_list.itemChanged.connect(self.update_summary)
         self.date_edit.dateChanged.connect(self.update_summary)
@@ -71,10 +76,17 @@ class AppointmentDialog(QDialog):
 
     def load_lists(self):
         with get_connection() as conn:
-            clients = conn.execute(
-                "SELECT id, first_name || ' ' || COALESCE(last_name, '') "
-                "FROM clients ORDER BY first_name"
-            ).fetchall()
+            if self.fixed_client_id is None:
+                clients = conn.execute(
+                    "SELECT id, first_name || ' ' || COALESCE(last_name, '') "
+                    "FROM clients ORDER BY first_name"
+                ).fetchall()
+            else:
+                clients = conn.execute(
+                    "SELECT id, first_name || ' ' || COALESCE(last_name, '') "
+                    "FROM clients WHERE id = %s",
+                    (self.fixed_client_id,),
+                ).fetchall()
             masters = conn.execute(
                 "SELECT id, first_name FROM masters "
                 "WHERE is_active ORDER BY first_name"

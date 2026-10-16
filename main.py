@@ -57,6 +57,9 @@ class AppointmentsTab(QWidget):
         buttons.addWidget(cancel_button)
         buttons.addWidget(pay_button)
 
+        if user["role"] == "client":
+            pay_button.hide()
+
         self.table = QTableWidget()
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -69,15 +72,16 @@ class AppointmentsTab(QWidget):
         self.load_appointments()
 
     def load_appointments(self):
-        if self.user["role"] == "master":
-            query = QUERY.format(where="WHERE a.master_id = %s")
-            params = (self.user["master_id"],)
+        role = self.user["role"]
+        if role == "master":
+            where, params = "WHERE a.master_id = %s", (self.user["master_id"],)
+        elif role == "client":
+            where, params = "WHERE a.client_id = %s", (self.user["client_id"],)
         else:
-            query = QUERY.format(where="")
-            params = ()
+            where, params = "", ()
 
         with get_connection() as conn:
-            rows = conn.execute(query, params).fetchall()
+            rows = conn.execute(QUERY.format(where=where), params).fetchall()
 
         self.table.setColumnCount(len(HEADERS))
         self.table.setHorizontalHeaderLabels(HEADERS)
@@ -105,8 +109,10 @@ class AppointmentsTab(QWidget):
         return self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
 
     def open_new_appointment(self):
-        master_id = self.user["master_id"] if self.user["role"] == "master" else None
-        dialog = AppointmentDialog(self, master_id)
+        role = self.user["role"]
+        master_id = self.user["master_id"] if role == "master" else None
+        client_id = self.user["client_id"] if role == "client" else None
+        dialog = AppointmentDialog(self, master_id, client_id)
         if dialog.exec():
             self.load_appointments()
 
@@ -160,12 +166,14 @@ class MainWindow(QMainWindow):
         self.resize(1100, 500)
 
         self.appointments_tab = AppointmentsTab(user)
-        self.clients_tab = ClientsTab()
+        self.clients_tab = None
         self.reports_tab = None
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.appointments_tab, "Записи")
-        self.tabs.addTab(self.clients_tab, "Клиенты")
+        if user["role"] in ("admin", "master"):
+            self.clients_tab = ClientsTab()
+            self.tabs.addTab(self.clients_tab, "Клиенты")
         if user["role"] == "admin":
             self.reports_tab = ReportsTab()
             self.tabs.addTab(self.reports_tab, "Отчёты")

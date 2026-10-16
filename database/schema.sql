@@ -44,13 +44,16 @@ CREATE TABLE users (
     id             integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username       varchar(50) NOT NULL UNIQUE,
     password_hash  text        NOT NULL,
-    role           varchar(10) NOT NULL CHECK (role IN ('admin', 'master')),
+    role           varchar(10) NOT NULL,
     master_id      integer     REFERENCES masters(id),
+    client_id      integer     UNIQUE REFERENCES clients(id),
     is_active      boolean     NOT NULL DEFAULT true,
     created_at     timestamptz NOT NULL DEFAULT now(),
-    CHECK (
-        (role = 'master' AND master_id IS NOT NULL) OR
-        (role = 'admin'  AND master_id IS NULL)
+    CONSTRAINT users_role_check CHECK (role IN ('admin', 'master', 'client')),
+    CONSTRAINT users_role_link_check CHECK (
+        (role = 'admin'  AND master_id IS NULL     AND client_id IS NULL) OR
+        (role = 'master' AND master_id IS NOT NULL AND client_id IS NULL) OR
+        (role = 'client' AND client_id IS NOT NULL AND master_id IS NULL)
     )
 );
 

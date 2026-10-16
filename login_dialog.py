@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import (
-    QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMessageBox,
+    QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMessageBox, QPushButton,
 )
 
 from auth import authenticate
+from register_dialog import RegisterDialog
 
 
 class LoginDialog(QDialog):
@@ -26,6 +27,17 @@ class LoginDialog(QDialog):
         buttons.accepted.connect(self.try_login)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+
+        register_button = QPushButton("Зарегистрироваться")
+        register_button.clicked.connect(self.open_register)
+        form.addRow(register_button)
+
+    def open_register(self):
+        dialog = RegisterDialog(self)
+        if dialog.exec():
+            self.username.setText(dialog.username_value)
+            self.password.clear()
+            self.password.setFocus()
 
     def try_login(self):
         user = authenticate(self.username.text().strip(), self.password.text())
