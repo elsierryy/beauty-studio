@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import psycopg
-from PyQt6.QtCore import QDateTime, Qt
+from PyQt6.QtCore import QDate, QDateTime, QTime, Qt
 from PyQt6.QtWidgets import (
-    QComboBox, QDateTimeEdit, QDialog, QDialogButtonBox, QFormLayout,
+    QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
     QLabel, QListWidget, QListWidgetItem, QMessageBox,
 )
 
@@ -17,15 +17,21 @@ class AppointmentDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Новая запись")
-        self.resize(450, 400)
+        self.resize(450, 420)
 
         self.client_box = QComboBox()
         self.master_box = QComboBox()
         self.services_list = QListWidget()
 
-        self.start_edit = QDateTimeEdit(QDateTime.currentDateTime().addDays(1))
-        self.start_edit.setCalendarPopup(True)
-        self.start_edit.setDisplayFormat(DATE_FORMAT)
+        self.date_edit = QDateEdit(QDate.currentDate().addDays(1))
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setDisplayFormat("dd.MM.yyyy")
+
+        self.time_box = QComboBox()
+        for hour in range(8, 22):
+            for minute in (0, 15, 30, 45):
+                self.time_box.addItem(f"{hour:02d}:{minute:02d}", QTime(hour, minute))
+        self.time_box.setCurrentText("10:00")
 
         self.total_label = QLabel("0.00 ₽")
         self.end_label = QLabel("-")
@@ -34,7 +40,8 @@ class AppointmentDialog(QDialog):
         form.addRow("Клиент:", self.client_box)
         form.addRow("Мастер:", self.master_box)
         form.addRow("Услуги:", self.services_list)
-        form.addRow("Начало:", self.start_edit)
+        form.addRow("Дата:", self.date_edit)
+        form.addRow("Время:", self.time_box)
         form.addRow("Окончание:", self.end_label)
         form.addRow("Итого:", self.total_label)
 
@@ -48,11 +55,17 @@ class AppointmentDialog(QDialog):
 
         self.load_lists()
 
+        # сигналы подключаем после первой загрузки, чтобы они не сработали раньше времени
         self.master_box.currentIndexChanged.connect(self.load_services)
         self.services_list.itemChanged.connect(self.update_summary)
-        self.start_edit.dateTimeChanged.connect(self.update_summary)
+        self.date_edit.dateChanged.connect(self.update_summary)
+        self.time_box.currentIndexChanged.connect(self.update_summary)
 
         self.load_services()
+
+    def start_qdatetime(self):
+        """Собирает начало записи из выбранной даты и времени."""
+        return QDateTime(self.date_edit.date(), self.time_box.currentData())
 
     def load_lists(self):
         with get_connection() as conn:
@@ -111,10 +124,39 @@ class AppointmentDialog(QDialog):
         self.total_label.setText(f"{total:.2f} ₽")
 
         if minutes:
-            end = self.start_edit.dateTime().addSecs(minutes * 60)
+            end = self.start_qdatetime().addSecs(minutes * 60)
             self.end_label.setText(f"{end.toString(DATE_FORMAT)} ({minutes} мин)")
         else:
             self.end_label.setText("-")
+
+    def within_schedule(self, start, end):
+        """Проверяет, что запись целиком попадает в рабочие часы мастера."""
+        master_id = self.master_box.currentData()
+        weekday = start.isoweekday()  # 1 = понедельник ... 7 = воскресенье
+
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT start_time, end_time FROM master_schedules "
+                "WHERE master_id = %s AND weekday = %s",
+                (master_id, weekday),
+            ).fetchone()
+
+        if row is None:
+            QMessageBox.warning(self, "Выходной", "В этот день мастер не работает.")
+            return False
+
+        work_start, work_end = row
+        if (end.date() != start.date()
+                or start.time() < work_start
+                or end.time() > work_end):
+            QMessageBox.warning(
+                self, "Вне рабочего времени",
+                f"Мастер работает с {work_start:%H:%M} до {work_end:%H:%M}. "
+                "Запись должна целиком попадать в это время.",
+            )
+            return False
+
+        return True
 
     def save(self):
         """Сохраняет запись и её услуги в базу одной транзакцией."""
@@ -129,11 +171,14 @@ class AppointmentDialog(QDialog):
             return
 
         minutes = sum(duration for _, _, duration in services)
-        start = self.start_edit.dateTime().toPyDateTime().astimezone()
+        start = self.start_qdatetime().toPyDateTime().astimezone()
         end = start + timedelta(minutes=minutes)
 
         if start < datetime.now().astimezone():
             QMessageBox.warning(self, "Неверное время", "Нельзя записать в прошлое.")
+            return
+
+        if not self.within_schedule(start, end):
             return
 
         try:
