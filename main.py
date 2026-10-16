@@ -1,14 +1,28 @@
 import sys
 from PyQt6.QtWidgets import (
-    QApplication, QHeaderView, QMainWindow, QTableWidget, QTableWidgetItem,
+    QApplication, QHeaderView, QMainWindow, QPushButton, QTableWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget,
 )
-from Tools.scripts.make_ctype import values
 
+from appointment_dialog import AppointmentDialog
 from db import get_connection
 
-QUERY = """ SELECT c.first_name || ' ' || COALESCE(c.last_name, ''), m.first_name, a.start_time, a.status, b.total_price, b.balance_due FROM appointments a JOIN clients c ON c.id = a.client_id JOIN masters m ON m.id = a.master_id JOIN v_appointment_balance b ON b.appointment_id = a.id ORDER BY a.start_time """
+QUERY = """
+SELECT c.first_name || ' ' || COALESCE(c.last_name, ''),
+       m.first_name,
+       a.start_time,
+       a.status,
+       b.total_price,
+       b.balance_due
+FROM appointments a
+JOIN clients c ON c.id = a.client_id
+JOIN masters m ON m.id = a.master_id
+JOIN v_appointment_balance b ON b.appointment_id = a.id
+ORDER BY a.start_time
+"""
 
 HEADERS = ["Клиент", "Мастер", "Время", "Статус", "Стоимость", "Остаток"]
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -16,9 +30,25 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Студия красоты")
         self.resize(900, 400)
 
+        self.add_button = QPushButton("Новая запись")
+        self.add_button.clicked.connect(self.open_new_appointment)
+
         self.table = QTableWidget()
-        self.setCentralWidget(self.table)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.add_button)
+        layout.addWidget(self.table)
+
+        central = QWidget()
+        central.setLayout(layout)
+        self.setCentralWidget(central)
+
         self.load_appointments()
+
+    def open_new_appointment(self):
+        dialog = AppointmentDialog(self)
+        if dialog.exec():
+            self.load_appointments()
 
     def load_appointments(self):
         with get_connection() as conn:
@@ -36,6 +66,7 @@ class MainWindow(QMainWindow):
 
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+
 
 app = QApplication(sys.argv)
 window = MainWindow()
