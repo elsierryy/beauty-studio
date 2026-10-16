@@ -28,7 +28,7 @@ class AppointmentDialog(QDialog):
         self.start_edit.setDisplayFormat(DATE_FORMAT)
 
         self.total_label = QLabel("0.00 ₽")
-        self.end_label = QLabel("—")
+        self.end_label = QLabel("-")
 
         form = QFormLayout(self)
         form.addRow("Клиент:", self.client_box)
@@ -48,7 +48,6 @@ class AppointmentDialog(QDialog):
 
         self.load_lists()
 
-        # сигналы подключаем после первой загрузки, чтобы они не сработали раньше времени
         self.master_box.currentIndexChanged.connect(self.load_services)
         self.services_list.itemChanged.connect(self.update_summary)
         self.start_edit.dateTimeChanged.connect(self.update_summary)
@@ -89,7 +88,7 @@ class AppointmentDialog(QDialog):
         self.services_list.blockSignals(True)
         self.services_list.clear()
         for service_id, name, price, minutes in rows:
-            item = QListWidgetItem(f"{name} — {price:.2f} ₽, {minutes} мин")
+            item = QListWidgetItem(f"{name} - {price:.2f} ₽, {minutes} мин")
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Unchecked)
             item.setData(Qt.ItemDataRole.UserRole, (service_id, price, minutes))
@@ -115,7 +114,7 @@ class AppointmentDialog(QDialog):
             end = self.start_edit.dateTime().addSecs(minutes * 60)
             self.end_label.setText(f"{end.toString(DATE_FORMAT)} ({minutes} мин)")
         else:
-            self.end_label.setText("—")
+            self.end_label.setText("-")
 
     def save(self):
         """Сохраняет запись и её услуги в базу одной транзакцией."""
