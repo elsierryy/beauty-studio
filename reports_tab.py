@@ -1,10 +1,12 @@
+import csv
 from datetime import date
 from decimal import Decimal
 
 from PyQt6.QtCore import QDate
 from PyQt6.QtWidgets import (
-    QComboBox, QDateEdit, QHBoxLayout, QHeaderView, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QComboBox, QDateEdit, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
+    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QWidget,
 )
 
 from db import get_connection
@@ -59,6 +61,8 @@ def fmt(value):
 class ReportsTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.headers = []
+        self.rows = []
 
         self.report_box = QComboBox()
         self.report_box.addItems(REPORTS.keys())
@@ -71,6 +75,8 @@ class ReportsTab(QWidget):
 
         show_button = QPushButton("Показать")
         show_button.clicked.connect(self.show_report)
+        export_button = QPushButton("Экспорт в CSV")
+        export_button.clicked.connect(self.export_csv)
 
         top = QHBoxLayout()
         top.addWidget(self.report_box)
@@ -79,6 +85,7 @@ class ReportsTab(QWidget):
         top.addWidget(QLabel("по"))
         top.addWidget(self.date_to)
         top.addWidget(show_button)
+        top.addWidget(export_button)
 
         self.summary = QLabel("")
         self.table = QTableWidget()
@@ -89,6 +96,9 @@ class ReportsTab(QWidget):
         layout.addWidget(self.table)
         layout.addWidget(self.summary)
 
+        self.show_report()
+
+    def refresh(self):
         self.show_report()
 
     def show_report(self):
@@ -102,6 +112,7 @@ class ReportsTab(QWidget):
 
         with get_connection() as conn:
             rows = conn.execute(query, (start, end)).fetchall()
+        self.headers, self.rows = headers, rows
 
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
@@ -118,3 +129,23 @@ class ReportsTab(QWidget):
             self.summary.setText(f"Итого: {total:.2f} ₽")
         else:
             self.summary.setText("")
+
+    def export_csv(self):
+        if not self.rows:
+            QMessageBox.information(self, "Нет данных", "Сначала постройте отчёт.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить отчёт", "report.csv", "CSV (*.csv)"
+        )
+        if not path:
+            return
+
+        with open(path, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(self.headers)
+            for row in self.rows:
+                writer.writerow([
+                    fmt(v).replace(".", ",") if isinstance(v, Decimal) else fmt(v)
+                    for v in row
+                ])
+        QMessageBox.information(self, "Готово", "Отчёт сохранён.")
